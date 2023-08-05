@@ -66,23 +66,24 @@ pulled from ! [Imvast](https://github.com/imvast/Capmonster-Checker)
 
 ---------------------------------------
 ### 📜 ChangeLog
+```diff
+ 
+! v0.0.1 (2/6/2023)
+> Initial Release ❤️
 
-## v0.0.1 (2/6/2023)
-- Initial Release ❤️
-
-## v0.2.1 (4/8/2023)
-- Updated, bug fixes ❤️
-- Added proxy support:
+! v0.2.1 (4/8/2023)
+> Updated, bug fixes ❤️
+> Added proxy support:
   Now, if there's a file named `proxies.txt` in the same folder as the script, the script will load the proxies from that file. If the user chooses to use proxies, it will randomly select one from the list of loaded proxies for each HTTP request. If the user decides not to use proxies, the script will make the HTTP requests without using any proxies.
-- Better error handling ❤️
-- Random Proxy Selection:
+> Better error handling ❤️
+> Random Proxy Selection:
   Instead of randomly selecting a proxy for each key check, we'll choose a single proxy and use it for multiple key checks before changing to another one. This will reduce the overhead of changing proxies frequently.
-- Threading or Asynchronous Requests:
+> Threading or Asynchronous Requests:
   Using Python's `concurrent.futures` module to check multiple keys simultaneously with threading.
-- Remove Invalid Proxies:
+> Remove Invalid Proxies:
   We implement a function to check the validity of proxies before using them for HTTP requests. If a proxy is found to be invalid, it will be removed from the proxy pool.
-- Logging:
+> Logging:
   We'll add proper logging to log the results, errors, and status of key checks and other operations.
-
+```
 ---------------------------------------
 
